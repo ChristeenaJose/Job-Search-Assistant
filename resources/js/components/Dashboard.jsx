@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Briefcase, Plus, Search, Trash2, ExternalLink, Loader2, Sparkles, FileText, ChevronRight, XCircle } from 'lucide-react';
+import { Briefcase, Plus, Search, Trash2, ExternalLink, Loader2, Sparkles, FileText, ChevronRight, XCircle, Edit3 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import ProfileModal from './ProfileModal';
@@ -12,6 +12,8 @@ const Dashboard = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [selectedJob, setSelectedJob] = useState(null);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [editForm, setEditForm] = useState({ company_name: '', position: '' });
 
     useEffect(() => {
         fetchJobs();
@@ -41,18 +43,26 @@ const Dashboard = () => {
 
     const handleAddJob = async (e) => {
         e.preventDefault();
-        if (!newJobLink || isSubmitting) return;
+        const trimmedLink = newJobLink.trim();
+        if (!trimmedLink || isSubmitting) return;
         setIsSubmitting(true);
         try {
-            const response = await axios.post('/api/jobs', { apply_link: newJobLink });
+            const response = await axios.post('/api/jobs', { apply_link: trimmedLink });
             setJobs([response.data, ...jobs]);
             setNewJobLink('');
         } catch (error) {
             console.error('Error adding job:', error);
-            if (error.response?.data?.errors?.apply_link) {
-                alert('This job link has already been added.');
+            if (error.response?.status === 409) {
+                alert(error.response.data.message);
+            } else if (error.response?.data?.errors?.apply_link) {
+                const errorMessage = error.response.data.errors.apply_link[0];
+                if (errorMessage.includes('already been taken')) {
+                    alert('This job link has already been added.');
+                } else {
+                    alert('Invalid URL: ' + errorMessage);
+                }
             } else {
-                alert('Please enter a valid URL');
+                alert('Analysis failed. Please check your internet connection or try again later.');
             }
         } finally {
             setIsSubmitting(false);
@@ -75,8 +85,43 @@ const Dashboard = () => {
         try {
             const response = await axios.patch(`/api/jobs/${id}`, { status });
             setJobs(jobs.map(job => job.id === id ? response.data : job));
+
+            if (status === 'Interview') {
+                const job = response.data;
+                const confirmAdd = confirm(`Application updated to "Interview"! Would you like to add meeting details (link, time, notes) for ${job.company_name} now?`);
+                if (confirmAdd) {
+                    // Logic to create a placeholder interview or redirect
+                    try {
+                        await axios.post('/api/interviews', {
+                            job_application_id: job.id,
+                            company_name: job.company_name,
+                            position: job.position,
+                            status: 'Scheduled'
+                        });
+                        alert('Placeholder interview record created in the Interviews tab. Go there to add your meeting link and notes!');
+                    } catch (err) {
+                        if (err.response?.status === 409) {
+                            alert(err.response.data.message);
+                        }
+                    }
+                }
+            }
         } catch (error) {
             console.error('Error updating status:', error);
+        }
+    };
+
+    const handleEditSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            const response = await axios.patch(`/api/jobs/${selectedJob.id}`, editForm);
+            const updatedJob = response.data;
+            setJobs(jobs.map(j => j.id === updatedJob.id ? updatedJob : j));
+            setSelectedJob(updatedJob);
+            setIsEditing(false);
+        } catch (error) {
+            console.error('Error updating job:', error);
+            alert('Failed to update job details');
         }
     };
 
@@ -264,11 +309,47 @@ const Dashboard = () => {
                             className="fixed top-0 right-0 h-full w-full max-w-xl bg-white shadow-2xl z-50 overflow-y-auto border-l border-slate-200"
                         >
                             <div className="sticky top-0 bg-white/90 backdrop-blur-md p-8 border-b border-slate-100 flex justify-between items-center z-10">
-                                <div>
-                                    <h2 className="text-2xl font-black text-slate-900">{selectedJob.position}</h2>
-                                    <p className="text-slate-500 font-medium">Full Analysis & Generation</p>
+                                <div className="flex-1">
+                                    {isEditing ? (
+                                        <div className="space-y-3 mr-4">
+                                            <input
+                                                type="text"
+                                                value={editForm.position}
+                                                onChange={(e) => setEditForm({ ...editForm, position: e.target.value })}
+                                                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-lg font-bold outline-none focus:ring-2 focus:ring-blue-500"
+                                                placeholder="Position"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={editForm.company_name}
+                                                onChange={(e) => setEditForm({ ...editForm, company_name: e.target.value })}
+                                                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500"
+                                                placeholder="Company Name"
+                                            />
+                                            <div className="flex gap-2">
+                                                <button onClick={handleEditSubmit} className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-all">Save</button>
+                                                <button onClick={() => setIsEditing(false)} className="px-4 py-2 bg-slate-100 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-200 transition-all">Cancel</button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="flex items-center gap-3">
+                                                <h2 className="text-2xl font-black text-slate-900">{selectedJob.position}</h2>
+                                                <button
+                                                    onClick={() => {
+                                                        setEditForm({ company_name: selectedJob.company_name, position: selectedJob.position });
+                                                        setIsEditing(true);
+                                                    }}
+                                                    className="p-1.5 bg-slate-50 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                                                >
+                                                    <Edit3 size={16} />
+                                                </button>
+                                            </div>
+                                            <p className="text-slate-500 font-medium">Full Analysis & Generation</p>
+                                        </>
+                                    )}
                                 </div>
-                                <button onClick={() => setSelectedJob(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                                <button onClick={() => { setSelectedJob(null); setIsEditing(false); }} className="p-2 hover:bg-slate-100 rounded-full transition-colors flex-shrink-0">
                                     <XCircle size={28} className="text-slate-300 hover:text-slate-900" />
                                 </button>
                             </div>
@@ -285,8 +366,14 @@ const Dashboard = () => {
                                             <div className="text-[10px] font-black text-slate-400 uppercase mb-2">Technical Fit</div>
                                             <div className="text-2xl font-black text-slate-900">{selectedJob.match_score}</div>
                                         </div>
-                                        <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 text-slate-400 flex items-center justify-center italic text-xs">
-                                            Role-based analysis
+                                        <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex flex-col justify-between">
+                                            <div>
+                                                <div className="text-[10px] font-black text-slate-400 uppercase mb-2">Semantic Match</div>
+                                                <div className="text-2xl font-black text-slate-900">
+                                                    {(selectedJob.semantic_score !== undefined && selectedJob.semantic_score !== null) ? Math.round(selectedJob.semantic_score * 100) : '--'}%
+                                                </div>
+                                            </div>
+                                            <div className="text-[10px] text-slate-400 italic">Conceptual similarity</div>
                                         </div>
                                     </div>
 

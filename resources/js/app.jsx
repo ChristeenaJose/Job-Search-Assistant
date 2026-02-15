@@ -10,6 +10,7 @@ import ApplicationsPage from './components/ApplicationsPage';
 import ProfileModal from './components/ProfileModal';
 import Login from './components/Login';
 import Register from './components/Register';
+import InterviewsPage from './components/InterviewsPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ user, loading, children }) => {
@@ -63,6 +64,12 @@ const Navbar = ({ user, setUser }) => {
                         className={`text-sm font-bold transition-colors ${location.pathname === '/applications' ? 'text-blue-600' : 'text-slate-500 hover:text-blue-600'}`}
                     >
                         Applications
+                    </Link>
+                    <Link
+                        to="/interviews"
+                        className={`text-sm font-bold transition-colors ${location.pathname === '/interviews' ? 'text-blue-600' : 'text-slate-500 hover:text-blue-600'}`}
+                    >
+                        Interviews
                     </Link>
                     <span
                         onClick={() => setIsProfileOpen(true)}
@@ -128,6 +135,11 @@ const App = () => {
                     <Route path="/applications" element={
                         <ProtectedRoute user={user} loading={loading}>
                             <ApplicationsPage />
+                        </ProtectedRoute>
+                    } />
+                    <Route path="/interviews" element={
+                        <ProtectedRoute user={user} loading={loading}>
+                            <InterviewsPage />
                         </ProtectedRoute>
                     } />
                 </Routes>

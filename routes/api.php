@@ -19,4 +19,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('profile', [\App\Http\Controllers\ProfileController::class, 'show']);
     Route::post('profile', [\App\Http\Controllers\ProfileController::class, 'update']);
     Route::post('profile/re-evaluate', [\App\Http\Controllers\ProfileController::class, 'reEvaluate']);
+
+    Route::get('interviews/check-company', [\App\Http\Controllers\InterviewController::class, 'checkCompany']);
+    Route::apiResource('interviews', \App\Http\Controllers\InterviewController::class);
 });

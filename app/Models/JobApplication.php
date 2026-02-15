@@ -20,6 +20,8 @@ class JobApplication extends Model
         'tailored_cv_path',
         'tailored_cover_letter_path',
         'user_id',
+        'embedding',
+        'semantic_score',
     ];
 
     protected $appends = [
@@ -30,6 +32,7 @@ class JobApplication extends Model
     protected $casts = [
         'highlights' => 'array',
         'missing_skills' => 'array',
+        'embedding' => 'array',
     ];
 
     public function getTailoredCvUrlAttribute()

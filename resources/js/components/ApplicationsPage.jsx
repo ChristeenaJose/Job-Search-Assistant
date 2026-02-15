@@ -18,7 +18,8 @@ import {
     ArrowDown,
     Sparkles,
     RotateCw,
-    RefreshCcw
+    RefreshCcw,
+    Edit3
 } from 'lucide-react';
 
 const StatusBadge = ({ status }) => {
@@ -55,6 +56,9 @@ const ApplicationsPage = () => {
     const [selectedJob, setSelectedJob] = useState(null);
     const [selectedIds, setSelectedIds] = useState([]);
     const [reanalyzingId, setReanalyzingId] = useState(null);
+    const [isEditing, setIsEditing] = useState(false);
+    const [editForm, setEditForm] = useState({ company_name: '', position: '' });
+    const [activeFilter, setActiveFilter] = useState('All');
 
     useEffect(() => {
         fetchJobs();
@@ -73,8 +77,26 @@ const ApplicationsPage = () => {
 
     const updateStatus = async (id, status) => {
         try {
-            await axios.patch(`/api/jobs/${id}`, { status });
+            const response = await axios.patch(`/api/jobs/${id}`, { status });
             fetchJobs();
+
+            if (status === 'Interview') {
+                const job = response.data;
+                const confirmAdd = confirm(`Application updated to "Interview"! Would you like to add meeting details for ${job.company_name} in the Interviews tab?`);
+                if (confirmAdd) {
+                    try {
+                        await axios.post('/api/interviews', {
+                            job_application_id: job.id,
+                            company_name: job.company_name,
+                            position: job.position,
+                            status: 'Scheduled'
+                        });
+                        alert('Interview record created. You can find it in the new "Interviews" tab!');
+                    } catch (err) {
+                        if (err.response?.status === 409) alert(err.response.data.message);
+                    }
+                }
+            }
         } catch (error) {
             console.error('Error updating status:', error);
         }
@@ -148,6 +170,20 @@ const ApplicationsPage = () => {
         }
     };
 
+    const handleEditSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            const response = await axios.patch(`/api/jobs/${selectedJob.id}`, editForm);
+            const updatedJob = response.data;
+            setJobs(jobs.map(j => j.id === updatedJob.id ? updatedJob : j));
+            setSelectedJob(updatedJob);
+            setIsEditing(false);
+        } catch (error) {
+            console.error('Error updating job:', error);
+            alert('Failed to update job details');
+        }
+    };
+
     const getMatchColor = (score) => {
         switch (score) {
             case 'High': return 'bg-emerald-50 text-emerald-700 border-emerald-100';
@@ -170,10 +206,22 @@ const ApplicationsPage = () => {
         return sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-blue-600" /> : <ArrowDown size={14} className="text-blue-600" />;
     };
 
+    const stats = React.useMemo(() => {
+        return {
+            All: jobs.length,
+            Pending: jobs.filter(j => j.status === 'Pending' || !j.status).length,
+            Applied: jobs.filter(j => j.status === 'Applied').length,
+            Interview: jobs.filter(j => j.status === 'Interview').length,
+            Selected: jobs.filter(j => j.status === 'Selected').length,
+            Rejected: jobs.filter(j => j.status === 'Rejected').length,
+        };
+    }, [jobs]);
+
     const sortedJobs = React.useMemo(() => {
         let sortableJobs = [...jobs.filter(job =>
-            job.company_name.toLowerCase().includes(search.toLowerCase()) ||
-            job.position.toLowerCase().includes(search.toLowerCase())
+            (job.company_name.toLowerCase().includes(search.toLowerCase()) ||
+                job.position.toLowerCase().includes(search.toLowerCase())) &&
+            (activeFilter === 'All' || (activeFilter === 'Pending' ? (!job.status || job.status === 'Pending') : job.status === activeFilter))
         )];
 
         if (sortConfig.key !== null) {
@@ -214,7 +262,7 @@ const ApplicationsPage = () => {
             });
         }
         return sortableJobs;
-    }, [jobs, search, sortConfig]);
+    }, [jobs, search, sortConfig, activeFilter]);
 
     return (
         <div className="max-w-7xl mx-auto px-6 py-12">
@@ -255,6 +303,32 @@ const ApplicationsPage = () => {
                     </div>
                 </div>
             </header>
+
+            <div className="flex flex-wrap items-center gap-3 mb-10">
+                {[
+                    { key: 'All', label: 'All Apps', color: 'slate', count: stats.All },
+                    { key: 'Pending', label: 'Pending', color: 'slate', count: stats.Pending },
+                    { key: 'Applied', label: 'Applied', color: 'blue', count: stats.Applied },
+                    { key: 'Interview', label: 'Interview', color: 'amber', count: stats.Interview },
+                    { key: 'Selected', label: 'Selected', color: 'emerald', count: stats.Selected },
+                    { key: 'Rejected', label: 'Rejected', color: 'rose', count: stats.Rejected },
+                ].map((btn) => (
+                    <button
+                        key={btn.key}
+                        onClick={() => setActiveFilter(btn.key)}
+                        className={`px-5 py-2.5 rounded-2xl flex items-center gap-3 transition-all font-bold text-sm ${activeFilter === btn.key
+                                ? `bg-${btn.color === 'slate' ? 'slate-900' : btn.color + '-600'} text-white shadow-lg shadow-${btn.color === 'slate' ? 'slate' : btn.color}-200 scale-105`
+                                : 'bg-white border border-slate-200 text-slate-500 hover:border-slate-300'
+                            }`}
+                    >
+                        {btn.label}
+                        <span className={`px-2 py-0.5 rounded-lg text-[10px] ${activeFilter === btn.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                            }`}>
+                            {btn.count}
+                        </span>
+                    </button>
+                ))}
+            </div>
 
             <div className="bg-white rounded-[2.5rem] border border-slate-200/60 shadow-xl shadow-slate-200/20 overflow-hidden">
                 <div className="overflow-x-auto">
@@ -324,18 +398,22 @@ const ApplicationsPage = () => {
                                     <td className="px-8 py-6 text-center">
                                         <MatchBadge score={job.match_score} />
                                     </td>
-                                    <td className="px-8 py-6">
+                                    <td className="px-8 py-6" onClick={(e) => e.stopPropagation()}>
                                         <select
-                                            value={job.status}
+                                            value={job.status || 'Pending'}
                                             onChange={(e) => updateStatus(job.id, e.target.value)}
-                                            onClick={(e) => e.stopPropagation()}
-                                            className="bg-transparent font-bold text-xs uppercase tracking-wider outline-none cursor-pointer hover:text-blue-600 transition-colors"
+                                            className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider outline-none border cursor-pointer transition-all appearance-none text-center min-w-[120px] ${job.status === 'Selected' ? 'bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-200' :
+                                                    job.status === 'Interview' ? 'bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-200' :
+                                                        job.status === 'Applied' ? 'bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200' :
+                                                            job.status === 'Rejected' ? 'bg-rose-100 text-rose-700 border-rose-200 hover:bg-rose-200' :
+                                                                'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                                                }`}
                                         >
-                                            <option value="Pending">🕒 Pending</option>
-                                            <option value="Applied">📝 Applied</option>
-                                            <option value="Interview">📅 Interview</option>
-                                            <option value="Selected">🎉 Selected</option>
-                                            <option value="Rejected">❌ Rejected</option>
+                                            <option value="Pending">Pending</option>
+                                            <option value="Applied">Applied</option>
+                                            <option value="Interview">Interview</option>
+                                            <option value="Selected">Selected</option>
+                                            <option value="Rejected">Rejected</option>
                                         </select>
                                     </td>
                                     <td className="px-8 py-6" onClick={(e) => e.stopPropagation()}>
@@ -420,11 +498,47 @@ const ApplicationsPage = () => {
                             className="fixed top-0 right-0 h-full w-full max-w-xl bg-white shadow-2xl z-50 overflow-y-auto border-l border-slate-200"
                         >
                             <div className="sticky top-0 bg-white/90 backdrop-blur-md p-8 border-b border-slate-100 flex justify-between items-center z-10">
-                                <div>
-                                    <h2 className="text-2xl font-black text-slate-900">{selectedJob.position}</h2>
-                                    <p className="text-slate-500 font-medium">Full Analysis & Generation</p>
+                                <div className="flex-1">
+                                    {isEditing ? (
+                                        <div className="space-y-3 mr-4">
+                                            <input
+                                                type="text"
+                                                value={editForm.position}
+                                                onChange={(e) => setEditForm({ ...editForm, position: e.target.value })}
+                                                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-lg font-bold outline-none focus:ring-2 focus:ring-blue-500"
+                                                placeholder="Position"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={editForm.company_name}
+                                                onChange={(e) => setEditForm({ ...editForm, company_name: e.target.value })}
+                                                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500"
+                                                placeholder="Company Name"
+                                            />
+                                            <div className="flex gap-2">
+                                                <button onClick={handleEditSubmit} className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-all">Save</button>
+                                                <button onClick={() => setIsEditing(false)} className="px-4 py-2 bg-slate-100 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-200 transition-all">Cancel</button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="flex items-center gap-3">
+                                                <h2 className="text-2xl font-black text-slate-900">{selectedJob.position}</h2>
+                                                <button
+                                                    onClick={() => {
+                                                        setEditForm({ company_name: selectedJob.company_name, position: selectedJob.position });
+                                                        setIsEditing(true);
+                                                    }}
+                                                    className="p-1.5 bg-slate-50 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                                                >
+                                                    <Edit3 size={16} />
+                                                </button>
+                                            </div>
+                                            <p className="text-slate-500 font-medium">{selectedJob.company_name}</p>
+                                        </>
+                                    )}
                                 </div>
-                                <button onClick={() => setSelectedJob(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                                <button onClick={() => { setSelectedJob(null); setIsEditing(false); }} className="p-2 hover:bg-slate-100 rounded-full transition-colors flex-shrink-0">
                                     <XCircle size={28} className="text-slate-300 hover:text-slate-900" />
                                 </button>
                             </div>

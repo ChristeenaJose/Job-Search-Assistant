@@ -19,6 +19,7 @@ class UserProfile extends Model
         'certificate_path',
         'cover_letter_path',
         'user_id',
+        'embedding',
     ];
 
     protected $appends = [
@@ -32,6 +33,7 @@ class UserProfile extends Model
         'skills' => 'array',
         'preferences' => 'array',
         'tech_stack' => 'array',
+        'embedding' => 'array',
     ];
 
     public function getCvUrlAttribute()
