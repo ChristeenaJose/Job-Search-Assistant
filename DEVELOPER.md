@@ -26,7 +26,7 @@ The app uses a hierarchical fallback system to ensure maximum availability:
 ### B. Specific AI Functions
 - **Job Analysis**: Processes scraped job text to extract Company Name, Position, Match Score, and Skills.
 - **Skill Extraction**: Analyzes user background to build a technical profile.
-- **Document Generation**: Creates tailored Cover Letters and CV summaries based on the job-user match.
+- **Document Generation**: Locally generates tailored Cover Letters and CV summaries using professional templates (No AI calls).
 - **Embeddings**: Uses `models/gemini-embedding-001` (3072 dimensions) to convert text into mathematical vectors for semantic comparison.
 
 ---

@@ -67,7 +67,7 @@ When a user submits a job link, the following synchronous process occurs:
 - Goes beyond keyword matching. It understands that "PHP" and "Laravel" are related, and "Frontend" matches "React."
 
 ### **C. Resume & Cover Letter Tailoring**
-- Generates a custom Cover Letter that highlights the "Matching Skills" identified in the analysis.
+- Generates a custom Cover Letter that highlights the "Matching Skills" identified in the analysis using professional local templates (No AI dependence).
 - Summarizes the user's CV to make it "ATS-Friendly" for that specific role.
 
 ### **D. Application Tracking**
@@ -82,4 +82,4 @@ When a user submits a job link, the following synchronous process occurs:
 | :--- | :--- | :--- | :--- |
 | **Analysis** | Gemini 2.0 Flash | OpenAI GPT-4o Mini | JSON Data |
 | **Embeddings** | Gemini-Embedding-001 | OpenAI Text-Embedding-3 | Numeric Vectors |
-| **Generation** | Gemini 2.0 Flash | Gemini 1.5 Flash | Markdown/Text |
+| **Generation** | Local Template | N/A | Markdown/Text |

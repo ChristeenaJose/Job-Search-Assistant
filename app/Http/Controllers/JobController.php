@@ -457,35 +457,23 @@ class JobController extends Controller
         $skills = implode(', ', $profile->skills ?? []);
         $experience = $profile->experience ?? 'Not specified';
 
-        // 1. Generate Cover Letter
-        $clTemplate = Setting::where('key', 'cl_prompt_template')->first()?->value ?? "Write a professional cover letter for the position of {position} at {company_name}. \nUser Skills: {skills}. \nExperience: {experience}. \nJob Description: {description}. \nKeep it concise, professional, and tailored to the job.";
+        // 1. Generate Cover Letter (Template Based)
+        $clContent = "Dear Hiring Manager at {$job->company_name},\n\n" .
+            "I am writing to express my strong interest in the {$job->position} position. " .
+            "With my background in " . implode(', ', array_slice($profile->skills ?? [], 0, 3)) . ", " .
+            "I am confident that my skills align well with the requirements of your team.\n\n" .
+            "My experience in " . (count($profile->skills ?? []) > 3 ? $profile->skills[3] . " and deeper technical implementations" : "professional software development") . " " .
+            "has prepared me to contribute effectively to your projects at {$job->company_name}.\n\n" .
+            "Thank you for your time and consideration. I look forward to the possibility of discussing how my background can support your goals.\n\n" .
+            "Sincerely,\n" . auth()->user()->name;
 
-        $clPrompt = str_replace(
-            ['{position}', '{company_name}', '{skills}', '{experience}', '{description}'],
-            [$job->position, $job->company_name, $skills, $experience, $job->description],
-            $clTemplate
-        );
-
-        $clContent = $this->callAI($clPrompt, "You are an expert career coach writing tailored cover letters.");
-
-        // 2. Generate ATS-Friendly CV Content (Summarized/Tailored)
-        $cvTemplate = Setting::where('key', 'cv_prompt_template')->first()?->value ?? "Create a tailored, ATS-friendly professional summary and key achievements section for a CV. \nTarget Role: {position} at {company_name}. \nUser Background: {experience}. \nUser Skills: {skills}. \nFocus on matching the job description: {description}.";
-
-        $cvPrompt = str_replace(
-            ['{position}', '{company_name}', '{skills}', '{experience}', '{description}'],
-            [$job->position, $job->company_name, $skills, $experience, $job->description],
-            $cvTemplate
-        );
-
-        $cvContent = $this->callAI($cvPrompt, "You are a professional CV writer specializing in ATS optimization.");
-
-        // Fallbacks if AI fails or key is missing
-        if (!$clContent) {
-            $clContent = "Dear Hiring Manager at " . $job->company_name . ",\n\nI am excited to apply for the " . $job->position . " role. With my background in " . ($profile->skills[0] ?? 'development') . "... (Please add your OpenAI API key for full generation)";
-        }
-        if (!$cvContent) {
-            $cvContent = "Tailored CV Summary for " . $job->company_name . "\nFocused on " . implode(', ', $job->highlights) . "\n(Please add your OpenAI API key for full generation)";
-        }
+        // 2. Generate ATS-Friendly CV Content (Template Based)
+        $cvContent = "PROFESSIONAL SUMMARY: \n" .
+            "Targeted for: {$job->position} at {$job->company_name}\n\n" .
+            "Technical Expertise: " . implode(', ', $profile->skills ?? []) . "\n" .
+            "Key Industry Match: " . implode(', ', $job->highlights ?? []) . "\n\n" .
+            "Professional Experience Summary:\n" .
+            mb_strcut($experience, 0, 500) . "...";
 
         $cvPath = 'tailored/cv_' . $job->id . '.txt';
         $clPath = 'tailored/cl_' . $job->id . '.txt';
